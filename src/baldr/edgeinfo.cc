@@ -23,7 +23,8 @@ void bike_network_json(uint8_t mask, rapidjson::writer_wrapper_t& writer) {
   writer("mountain", static_cast<bool>(mask & kMcn));
 }
 
-void names_json(const std::vector<std::string>& names, rapidjson::writer_wrapper_t& writer) {
+void names_json(const std::vector<std::pair<std::string, bool>>& names,
+                rapidjson::writer_wrapper_t& writer) {
   bool ref_found = false;
   for (const auto& [fst, snd] : names) {
     if (snd) {
