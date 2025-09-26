@@ -1,6 +1,11 @@
 #include "baldr/edgeinfo.h"
 #include "baldr/graphconstants.h"
+#include "baldr/rapidjson_utils.h"
 #include "midgard/elevation_encoding.h"
+#include "midgard/logging.h"
+#include "midgard/util.h"
+
+#include <vector>
 
 using namespace valhalla::baldr;
 
@@ -11,45 +16,40 @@ bool IsNonLiguisticTagValue(char ch) {
   return static_cast<TaggedValue>(ch) != TaggedValue::kLinguistic;
 }
 
-json::MapPtr bike_network_json(uint8_t mask) {
-  return json::map({
-      {"national", static_cast<bool>(mask & kNcn)},
-      {"regional", static_cast<bool>(mask & kRcn)},
-      {"local", static_cast<bool>(mask & kLcn)},
-      {"mountain", static_cast<bool>(mask & kMcn)},
-  });
+void bike_network_json(uint8_t mask, rapidjson::writer_wrapper_t& writer) {
+  writer("national", static_cast<bool>(mask & kNcn));
+  writer("regional", static_cast<bool>(mask & kRcn));
+  writer("local", static_cast<bool>(mask & kLcn));
+  writer("mountain", static_cast<bool>(mask & kMcn));
 }
 
-json::ArrayPtr names_json(const std::vector<std::pair<std::string, bool>>& names) {
-  auto a = json::array({});
+void names_json(const std::vector<std::string>& names, rapidjson::writer_wrapper_t& writer) {
   bool ref_found = false;
   for (const auto& [fst, snd] : names) {
     if (snd) {
       if (!ref_found) {
-        a->push_back(fst);
+        writer(fst);
         ref_found = true;
       }
     } else {
-      a->push_back(fst);
+      writer(fst);
     }
   }
-  return a;
 }
 
-json::ArrayPtr is_route_number_json(const std::vector<std::pair<std::string, bool>>& names) {
-  auto a = json::array({});
+void is_route_number_json(const std::vector<std::pair<std::string, bool>>& names,
+                          rapidjson::writer_wrapper_t& writer) {
   bool ref_found = false;
   for (const auto& [fst, snd] : names) {
     if (snd) {
       if (!ref_found) {
-        a->push_back(true);
+        writer(true);
         ref_found = true;
       }
     } else {
-      a->push_back(false);
+      writer(false);
     }
   }
-  return a;
 }
 
 /**
@@ -539,32 +539,40 @@ std::vector<std::string> EdgeInfo::level_ref() const {
   return values;
 }
 
-json::MapPtr EdgeInfo::json() const {
+void EdgeInfo::json(rapidjson::writer_wrapper_t& writer) const {
   auto edge_names = GetNames(true);
 
-  json::MapPtr edge_info = json::map({
-      {"way_id", static_cast<uint64_t>(wayid())},
-      {"bike_network", bike_network_json(bike_network())},
-      {"names", names_json(edge_names)},
-      {"is_route_number", is_route_number_json(edge_names)},
-      {"shape", midgard::encode(shape())},
-  });
+  writer("way_id", static_cast<uint64_t>(wayid()));
+
+  writer.start_object("bike_network");
+  bike_network_json(bike_network(), writer);
+  writer.end_object();
+
+  writer.start_array("names");
+  names_json(edge_names, writer);
+  writer.end_array();
+
+  writer.start_array("is_route_number");
+  is_route_number_json(edge_names, writer);
+  writer.end_array();
+
+  writer("shape", midgard::encode(shape()));
 
   // add the mean_elevation depending on its validity
   const auto elev = mean_elevation();
   if (elev == kNoElevationData) {
-    edge_info->emplace("mean_elevation", nullptr);
+    writer("mean_elevation", nullptr);
   } else {
-    edge_info->emplace("mean_elevation", static_cast<int64_t>(elev));
+    writer("mean_elevation", static_cast<int64_t>(elev));
   }
 
   if (speed_limit() == kUnlimitedSpeedLimit) {
-    edge_info->emplace("speed_limit", std::string("unlimited"));
+    writer("speed_limit", "unlimited");
   } else {
-    edge_info->emplace("speed_limit", static_cast<uint64_t>(speed_limit()));
+    writer("speed_limit", static_cast<uint64_t>(speed_limit()));
   }
 
-  json::MapPtr conditional_speed_limits;
+  std::vector<std::pair<std::string, uint64_t>> conditional_speed_limits;
   for (const auto& [tag, value] : GetTags()) {
     switch (tag) {
       case TaggedValue::kLayer:
@@ -580,31 +588,32 @@ json::MapPtr EdgeInfo::json() const {
       case TaggedValue::kLandmark:
         break;
       case TaggedValue::kLevels: {
-        json::ArrayPtr levels = json::array({});
+        writer.start_array("levels");
         std::vector<std::pair<float, float>> decoded;
         uint32_t precision;
         std::tie(decoded, precision) = decode_levels(value);
+
+        if (precision)
+          writer.set_precision(precision);
+
         for (auto& range : decoded) {
           if (range.first == range.second) {
             // single number
-            levels->emplace_back(json::fixed_t{range.first, precision});
+            writer(range.first);
           } else {
             // range
-            json::ArrayPtr level = json::array({});
-            level->emplace_back(json::fixed_t{range.first, precision});
-            level->emplace_back(json::fixed_t{range.second, precision});
-            levels->emplace_back(level);
+            writer.start_array();
+            writer(range.first);
+            writer(range.second);
+            writer.end_array();
           }
         }
-        edge_info->emplace("levels", levels);
+        writer.end_array();
         break;
       }
       case TaggedValue::kConditionalSpeedLimits: {
-        if (!conditional_speed_limits) {
-          conditional_speed_limits = json::map({});
-        }
         const ConditionalSpeedLimit* l = reinterpret_cast<const ConditionalSpeedLimit*>(value.data());
-        conditional_speed_limits->emplace(l->td_.to_string(), static_cast<uint64_t>(l->speed_));
+        conditional_speed_limits.push_back({l->td_.to_string(), l->speed_});
         break;
       }
       case TaggedValue::kTunnel:
@@ -613,11 +622,14 @@ json::MapPtr EdgeInfo::json() const {
         break;
     }
   }
-  if (conditional_speed_limits) {
-    edge_info->emplace("conditional_speed_limits", std::move(conditional_speed_limits));
-  }
 
-  return edge_info;
+  if (!conditional_speed_limits.empty()) {
+    writer.start_object("conditional_speed_limits");
+    for (auto& [condition, speed] : conditional_speed_limits) {
+      writer(condition, speed);
+    }
+    writer.end_object();
+  }
 }
 
 } // namespace baldr

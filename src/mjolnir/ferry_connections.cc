@@ -1,6 +1,8 @@
 #include "mjolnir/ferry_connections.h"
 #include "baldr/graphconstants.h"
 #include "midgard/util.h"
+#include "mjolnir/node_expander.h"
+#include "mjolnir/osmdata.h"
 #include "scoped_timer.h"
 
 #include <queue>
@@ -325,9 +327,9 @@ void ReclassifyFerryConnections(const std::string& ways_file,
 
   // Iterate through nodes and find any that connect to both a ferry and a
   // regular (non-ferry) edge. Skip short ferry edges (river crossing?)
-  uint32_t ferry_endpoint_count = 0;
-  uint32_t total_count = 0;
-  uint32_t missed_both = 0;
+  [[maybe_unused]] uint32_t ferry_endpoint_count = 0;
+  [[maybe_unused]] uint32_t total_count = 0;
+  [[maybe_unused]] uint32_t missed_both = 0;
   sequence<Node>::iterator node_itr = nodes.begin();
   while (node_itr != nodes.end()) {
     auto bundle = collect_node_edges(node_itr, nodes, edges);

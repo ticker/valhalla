@@ -1,10 +1,12 @@
-#include "baldr/graphid.h"
-#include "baldr/json.h"
 #include "midgard/util.h"
-#include "mjolnir/ferry_connections.h"
 #include "mjolnir/node_expander.h"
+#include "mjolnir/osmdata.h"
 #include "mjolnir/util.h"
 #include "scoped_timer.h"
+
+#ifdef LOGGING_LEVEL_DEBUG
+#include "baldr/json.h"
+#endif
 
 #include <optional>
 #include <queue>
@@ -908,8 +910,8 @@ void ReclassifyLinks(const std::string& ways_file,
 
   // Iterate through the exit node list by classification so exits from major
   // roads are considered before exits from minor roads.
-  uint32_t reclass_count = 0;
-  uint32_t tc_count = 0;
+  [[maybe_unused]] uint32_t reclass_count = 0;
+  [[maybe_unused]] uint32_t tc_count = 0;
 
   for (uint32_t classification = 0; classification < kMaxClassification; classification++) {
     for (auto& node : exit_nodes[classification]) {

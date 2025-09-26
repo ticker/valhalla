@@ -1,6 +1,7 @@
 #pragma once
 
 #include <valhalla/baldr/accessrestriction.h>
+#include <valhalla/baldr/admin.h>
 #include <valhalla/baldr/admininfo.h>
 #include <valhalla/baldr/complexrestriction.h>
 #include <valhalla/baldr/directededge.h>
@@ -23,11 +24,16 @@
 #include <valhalla/baldr/transitstop.h>
 #include <valhalla/baldr/transittransfer.h>
 #include <valhalla/baldr/turnlanes.h>
-#include <valhalla/filesystem.h>
 #include <valhalla/midgard/aabb2.h>
 #include <valhalla/midgard/logging.h>
+#include <valhalla/midgard/util.h>
+
+#ifndef ENABLE_THREAD_SAFE_TILE_REF_COUNT
+#include <boost/smart_ptr/intrusive_ref_counter.hpp>
+#endif
 
 #include <cstdint>
+#include <filesystem>
 #include <iterator>
 #include <memory>
 
@@ -97,7 +103,8 @@ public:
    * @param  tile_data graph tile raw bytes
    * @param  disk_location tile filesystem path
    */
-  static void SaveTileToFile(const std::vector<char>& tile_data, const std::string& disk_location);
+  static void SaveTileToFile(const std::vector<char>& tile_data,
+                             const std::filesystem::path& disk_location);
 
   /**
    * Destructor
@@ -185,7 +192,7 @@ public:
    */
   midgard::PointLL get_node_ll(const GraphId& nodeid) const {
     assert(nodeid.Tile_Base() == header_->graphid().Tile_Base());
-    return node(nodeid)->latlng(header()->base_ll());
+    return node(nodeid)->latlng(base_ll_);
   }
 
   /**
@@ -784,6 +791,10 @@ public:
   }
 
 protected:
+  // base location of the tile, comes from `header()->base_ll()`, but we cache it here to avoid extra
+  // computation on the hot path
+  midgard::PointLL base_ll_{};
+
   // Graph tile memory. A Graph tile owns its memory.
   std::unique_ptr<const GraphMemory> memory_;
 

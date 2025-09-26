@@ -1,7 +1,7 @@
 #pragma once
-#include "valhalla.h"
+#include <valhalla/valhalla.h>
 
-#include <boost/property_tree/ptree.hpp>
+#include <boost/property_tree/ptree_fwd.hpp>
 
 #include <string>
 
@@ -12,6 +12,12 @@
 
 // clang-format off
 #define VALHALLA_VERSION VALHALLA_STRINGIZE(VALHALLA_VERSION_MAJOR) "." VALHALLA_STRINGIZE(VALHALLA_VERSION_MINOR) "." VALHALLA_STRINGIZE(VALHALLA_VERSION_PATCH)
+#ifdef VALHALLA_VERSION_MODIFIER
+#define VALHALLA_VERSION_PRECISE VALHALLA_VERSION "-" VALHALLA_STRINGIZE(VALHALLA_VERSION_MODIFIER)
+#define VALHALLA_PRINT_VERSION VALHALLA_VERSION_PRECISE
+#else
+#define VALHALLA_PRINT_VERSION VALHALLA_VERSION
+#endif
 // clang-format on
 
 /* Name of package */

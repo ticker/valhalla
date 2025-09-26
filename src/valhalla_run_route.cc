@@ -2,14 +2,12 @@
 #include "baldr/attributes_controller.h"
 #include "baldr/graphreader.h"
 #include "baldr/pathlocation.h"
-#include "baldr/tilehierarchy.h"
 #include "loki/search.h"
 #include "loki/worker.h"
 #include "midgard/encoded.h"
 #include "midgard/logging.h"
 #include "odin/directionsbuilder.h"
 #include "odin/enhancedtrippath.h"
-#include "odin/util.h"
 #include "proto/api.pb.h"
 #include "proto/directions.pb.h"
 #include "proto/options.pb.h"
@@ -28,6 +26,7 @@
 #include <cmath>
 #include <cstdint>
 #include <cstdlib>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <string>
@@ -40,7 +39,6 @@ using namespace valhalla::loki;
 using namespace valhalla::odin;
 using namespace valhalla::sif;
 using namespace valhalla::thor;
-using namespace valhalla::meili;
 
 namespace {
 
@@ -456,7 +454,7 @@ valhalla::DirectionsLeg DirectionsTest(valhalla::Api& api,
 
 // Main method for testing a single path
 int main(int argc, char* argv[]) {
-  const auto program = filesystem::path(__FILE__).stem().string();
+  const auto program = std::filesystem::path(__FILE__).stem().string();
   // args
   std::string json_str, json_file;
   boost::property_tree::ptree config;
@@ -469,7 +467,7 @@ int main(int argc, char* argv[]) {
     // clang-format off
     cxxopts::Options options(
       program,
-      program + " " + VALHALLA_VERSION + "\n\n"
+      program + " " + VALHALLA_PRINT_VERSION + "\n\n"
       "a command line test tool for shortest path routing.\n"
       "Use the -j option for specifying the locations and costing method and options.");
 
@@ -493,7 +491,7 @@ int main(int argc, char* argv[]) {
     // clang-format on
 
     auto result = options.parse(argc, argv);
-    if (!parse_common_args(program, options, result, config, "mjolnir.logging"))
+    if (!parse_common_args(program, options, result, &config, "mjolnir.logging"))
       return EXIT_SUCCESS;
 
     if (iterations > 1) {
